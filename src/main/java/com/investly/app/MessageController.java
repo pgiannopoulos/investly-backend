@@ -1,10 +1,13 @@
 package com.investly.app;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
@@ -18,13 +21,13 @@ public class MessageController {
     private final MaskRepository maskRepository;
 
     @PostMapping("/new")
+    @Transactional
     public ResponseEntity<MessageEntity> createMessage(@RequestBody MessageEntity messageEntity) {
         if (messageEntity.getMaskEntity() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MaskEntity is required");
         }
 
-        //used valueOf because it needed a string and we provided an int
-        MaskEntity maskEntity = maskRepository.findById(String.valueOf(messageEntity.getMaskEntity().getId()))
+        MaskEntity maskEntity = maskRepository.findById(messageEntity.getMaskEntity().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mask entity with this ID not found"));
 
         messageEntity.setMaskEntity(maskEntity);
