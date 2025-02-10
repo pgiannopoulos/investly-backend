@@ -29,3 +29,4 @@ CREATE TABLE public.messages (
 	CONSTRAINT message_entity_pkey PRIMARY KEY (id),
 	CONSTRAINT message_entity_mask_id_fkey FOREIGN KEY (mask_id) REFERENCES public.masks(id) ON DELETE CASCADE
 );
+
