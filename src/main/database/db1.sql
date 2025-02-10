@@ -1,12 +1,15 @@
-DROP TABLE IF EXISTS responses;
+DROP TABLE IF EXISTS response;
+DROP SEQUENCE IF EXISTS response_seq;
 
-CREATE TABLE responses (
-    id SERIAL PRIMARY KEY,                              -- Auto-incrementing primary key.
-    message TEXT NOT NULL,                              -- Column for the message.
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,        -- Timestamp column.
-    message_id INT NOT NULL,                            -- Foreign key column.
+CREATE SEQUENCE response_seq START 1;
+
+CREATE TABLE response (
+    id BIGINT PRIMARY KEY DEFAULT nextval('response_seq'),
+    message TEXT NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    message_id BIGINT NOT NULL,
     CONSTRAINT fk_message
         FOREIGN KEY (message_id)
-        REFERENCES messages(id)                         -- Adjust table name if your messages table is named differently.
-        ON DELETE CASCADE                               -- Optional: deletes user_messages rows if the referenced message is deleted.
+        REFERENCES messages(id)
+        ON DELETE CASCADE
 );

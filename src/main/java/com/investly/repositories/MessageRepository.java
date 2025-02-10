@@ -1,5 +1,6 @@
-package com.investly.app;
+package com.investly.repositories;
 
+import com.investly.entities.MessageEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
