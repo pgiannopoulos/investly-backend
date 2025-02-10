@@ -1,4 +1,4 @@
-package com.investly.app;
+package com.investly.entities;
 
 import jakarta.persistence.*;
 import lombok.*;

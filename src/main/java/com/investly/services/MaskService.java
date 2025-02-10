@@ -1,5 +1,7 @@
-package com.investly.app;
+package com.investly.services;
 
+import com.investly.entities.MaskEntity;
+import com.investly.repositories.MaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.util.List;
