@@ -1,8 +1,8 @@
-package com.investly.controllers;
+package com.investly.app.controllers;
 
-import com.investly.entities.MessageEntity;
-import com.investly.dto.MessageRequest;
-import com.investly.services.MessageService;
+import com.investly.app.dao.MessageEntity;
+import com.investly.app.dto.MessageRequest;
+import com.investly.app.services.MessageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
