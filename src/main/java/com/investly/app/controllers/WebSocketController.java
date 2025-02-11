@@ -7,8 +7,6 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Controller;
 
-import java.io.IOException;
-
 @Controller
 public class WebSocketController {
     private final MessageService messageService;
@@ -19,7 +17,7 @@ public class WebSocketController {
 
     @MessageMapping("/send")
     @SendTo("/topic/messages")
-    public MessageEntity processMessage(MessageRequest messageRequest) throws IOException {
-        return messageService.createMessage(messageRequest.getTextPrompt());
+    public MessageEntity processMessage(MessageRequest messageRequest) {
+        return messageService.createMessage(messageRequest.getMaskId(), messageRequest.getTextPrompt());
     }
 }

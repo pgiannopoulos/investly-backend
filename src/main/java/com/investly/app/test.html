@@ -2,14 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WebSocket Test</title>
+    <title>WebSocket Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
 </head>
 <body>
-<h1>WebSocket Test Client</h1>
-<button onclick="sendTestMessage()">Send Test Message</button>
-
 <script>
     // Connect to the WebSocket endpoint
     var socket = new SockJS('http://localhost:8086/ws');
@@ -17,22 +14,25 @@
 
     stompClient.connect({}, function(frame) {
         console.log('Connected: ' + frame);
+        // Subscribe to the topic to receive broadcast messages
         stompClient.subscribe('/topic/messages', function(messageOutput) {
-            console.log("Received from server:", JSON.parse(messageOutput.body));
+            var message = JSON.parse(messageOutput.body);
+            console.log("Received: ", message);
         });
     });
 
-    // Function to send a test message
-    function sendTestMessage() {
-        // Create a message payload. Adjust the maskId and textPrompt as needed.
+    // Function to send a message (could be triggered by a UI event)
+    function sendMessage(maskId, textPrompt) {
+        // Create the message payload in line with MessageRequest DTO
         var message = {
-            maskId: 1,
-            textPrompt: "Hello, this is a test message!"
+            maskId: maskId,
+            textPrompt: textPrompt
         };
-        // Send the message to the server endpoint (this should be mapped to your @MessageMapping method)
         stompClient.send("/app/send", {}, JSON.stringify(message));
-        console.log("Test message sent:", message);
     }
+
+    // Example usage
+    // sendMessage(1, "Hello, this is a test message");
 </script>
 </body>
 </html>
