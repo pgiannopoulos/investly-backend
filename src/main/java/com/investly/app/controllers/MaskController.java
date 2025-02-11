@@ -1,7 +1,7 @@
-package com.investly.controllers;
+package com.investly.app.controllers;
 
-import com.investly.entities.MaskEntity;
-import com.investly.services.MaskService;
+import com.investly.app.dao.MaskEntity;
+import com.investly.app.services.MaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
