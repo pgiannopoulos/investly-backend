@@ -1,4 +1,4 @@
-package com.investly.dto;
+package com.investly.app.dto;
 
 import lombok.Data;
 
