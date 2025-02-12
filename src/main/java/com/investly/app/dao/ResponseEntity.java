@@ -28,4 +28,10 @@ public class ResponseEntity {
     @OneToOne
     @JoinColumn(name = "message_id", nullable = false)
     private MessageEntity messageEntity;
+
+    public ResponseEntity(MessageEntity messageEntity, String aiResponse) {
+        this.messageEntity = messageEntity;
+        this.message = aiResponse;
+        this.timestamp = OffsetDateTime.now();
+    }
 }
