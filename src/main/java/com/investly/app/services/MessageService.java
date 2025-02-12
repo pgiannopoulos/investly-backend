@@ -4,6 +4,7 @@ import com.investly.app.dao.MaskEntity;
 import com.investly.app.dao.MessageEntity;
 import com.investly.app.dao.MaskRepository;
 import com.investly.app.dao.MessageRepository;
+import com.investly.app.dao.ResponseEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,7 +18,7 @@ public class MessageService {
 
     private final MessageRepository messageRepository;
     private final MaskRepository maskRepository;
-
+    private final AIService aiService; // Inject AI Service
 
     public MessageEntity createMessage(Integer maskId, String textPrompt) {
         MaskEntity mask = maskRepository.findById(maskId)
@@ -28,6 +29,8 @@ public class MessageService {
         message.setTextPrompt(textPrompt);
         message.setTimestamp(OffsetDateTime.now());
 
-        return messageRepository.save(message);
+        MessageEntity savedMessage = messageRepository.save(message);
+
+        return savedMessage;
     }
 }
