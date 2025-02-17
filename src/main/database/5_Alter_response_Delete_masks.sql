@@ -1,0 +1,5 @@
+ALTER TABLE messages DROP FOREIGN KEY IF EXISTS fk_messages_mask;
+
+ALTER TABLE messages DROP COLUMN IF EXISTS mask_id;
+
+DROP TABLE IF EXISTS masks;
