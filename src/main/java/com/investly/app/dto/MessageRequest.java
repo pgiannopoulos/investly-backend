@@ -6,4 +6,12 @@ import lombok.Data;
 public class MessageRequest {
     private Integer maskId;
     private String textPrompt;
+
+    public Integer getMaskId() {
+        return maskId;
+    }
+    public String getTextPrompt() {
+        return textPrompt;
+    }
+
 }

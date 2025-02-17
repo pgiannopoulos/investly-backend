@@ -7,8 +7,6 @@ import lombok.*;
 @Table(name = "masks")
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
-@Setter
 @EqualsAndHashCode
 @ToString
 public class MaskEntity {
@@ -20,6 +18,31 @@ public class MaskEntity {
     private String name;
 
     @Column(nullable = false)
-    private String label;
+    private String description;
+
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getLabel() {
+        return description;
+    }
+
+    public void setLabel(String label) {
+        this.description = description;
+    }
 }
 
