@@ -5,16 +5,17 @@ import com.investly.app.dto.MessageRequest;
 import com.investly.app.services.MessageService;
 import com.investly.app.services.ResponseService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.stereotype.Controller;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestController
-@RequestMapping("/messages")
+@Controller
+@MessageMapping("/messages")
 public class MessageController {
 
     private final MessageService messageService;
@@ -26,8 +27,8 @@ public class MessageController {
         this.responseService = responseService;
     }
 
-    @PostMapping("/new")
-    public ResponseEntity<Map<String, Object>> createMessage(@RequestBody MessageRequest messageRequest) {
+    @MessageMapping("/new")
+    public ResponseEntity<Map<String, Object>> createMessage(@Payload MessageRequest messageRequest) {
         // Persist user message
         MessageEntity savedMessage = messageService.createMessage(messageRequest.getMaskId(), messageRequest.getTextPrompt());
 
