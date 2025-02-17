@@ -1,0 +1,1 @@
+ALTER TABLE response ADD COLUMN thread_id VARCHAR(255);

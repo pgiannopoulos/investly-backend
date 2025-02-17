@@ -17,6 +17,11 @@ public class ResponseService {
         this.responseRepository = responseRepository;
     }
 
+    public void saveResponse(ResponseEntity aiResponse) {
+        responseRepository.save(aiResponse);
+    }
+
+
     public ResponseEntity getResponseByMessageId(Long messageId) {
         Optional<ResponseEntity> response = responseRepository.findById(messageId);
         return response.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Response not found"));
