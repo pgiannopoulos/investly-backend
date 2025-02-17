@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,12 +28,12 @@ public class MessageController {
     }
 
     @PostMapping("/new")
-    public ResponseEntity<Map<String, Object>> createMessage(@RequestBody MessageRequest messageRequest) {
-        // Persist user message
-        MessageEntity savedMessage = messageService.createMessage(messageRequest.getMaskId(), messageRequest.getTextPrompt());
+    public ResponseEntity<Map<String, Object>> createMessage(@RequestBody MessageRequest messageRequest) throws IOException {
+        // Persist user message (without maskId)
+        MessageEntity savedMessage = messageService.createMessage(messageRequest.getTextPrompt());
 
-        // Process AI response
-        String aiResponseText = messageService.processMessage(savedMessage.getMaskEntity().getId(), savedMessage.getTextPrompt());
+        // Process AI response (pass only the user message)
+        String aiResponseText = messageService.processMessage(savedMessage.getTextPrompt());
 
         // Persist AI response
         com.investly.app.dao.ResponseEntity aiResponse = new com.investly.app.dao.ResponseEntity();
@@ -44,11 +45,12 @@ public class MessageController {
         // Save the AI response to the database
         responseService.saveResponse(aiResponse);
 
-        // Return both message and AI response
+        // Return both user message and AI response
         Map<String, Object> response = new HashMap<>();
         response.put("userMessage", savedMessage);
         response.put("aiResponse", aiResponse);
 
-        return org.springframework.http.ResponseEntity.ok(response);
+        return ResponseEntity.ok(response);
     }
+
 }

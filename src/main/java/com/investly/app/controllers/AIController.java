@@ -23,7 +23,7 @@ public class AIController {
         Integer maskId = (Integer) request.get("maskId");
         String userMessage = (String) request.get("message");
 
-        String aiResponse = aiService.processUserMessage(maskId, userMessage);
+        String aiResponse = aiService.processUserMessage(userMessage);
 
         return ResponseEntity.ok(Map.of("response", aiResponse));
     }

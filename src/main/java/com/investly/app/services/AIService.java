@@ -1,10 +1,6 @@
 package com.investly.app.services;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.investly.app.dao.MaskRepository;
+import com.google.gson.*;
 import com.investly.app.dao.MessageRepository;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +15,6 @@ import java.util.logging.Logger;
 
 @Service
 public class AIService {
-    @Autowired
-    private MaskRepository maskRepository;
 
     @Autowired
     private MessageRepository messageRepository;
@@ -39,13 +33,15 @@ public class AIService {
 
     private final OkHttpClient client = new OkHttpClient();
 
-    public String processUserMessage(Integer maskId, String userMessage) {
+    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+    public String processUserMessage(String userMessage) {
         try {
-            // always create a new thread
+            // Always create a new thread
             String threadId = createThread();
             LOGGER.info("Created new thread: " + threadId);
 
-            boolean messageAdded = addMessageToThread(threadId, maskId, userMessage);
+            boolean messageAdded = addMessageToThread(threadId, userMessage);
             if (!messageAdded) {
                 LOGGER.severe("Failed to add message to thread: " + threadId);
                 return "Error: Failed to add message to thread.";
@@ -79,64 +75,62 @@ public class AIService {
         runData.addProperty("assistant_id", assistantId);
         runData.addProperty("response_format", "auto");
 
-        // define valid function schemas
+        // Define valid function schemas
         JsonArray tools = new JsonArray();
 
         // getBalance function
-        JsonObject getBalanceFunction = new JsonObject();
-        getBalanceFunction.addProperty("type", "function");
-        JsonObject getBalanceDetails = new JsonObject();
-        getBalanceDetails.addProperty("name", "getBalance");
-        getBalanceDetails.addProperty("description", "Retrieve the user's Binance account balance");
-        JsonObject balanceParams = new JsonObject();
-        balanceParams.addProperty("type", "object"); // Ensure it's of type "object"
-        balanceParams.add("properties", new JsonObject()); // Empty object for no parameters
-        getBalanceDetails.add("parameters", balanceParams);
-        getBalanceFunction.add("function", getBalanceDetails);
-        tools.add(getBalanceFunction);
+        tools.add(createFunctionSchema("getBalance",
+                "Retrieve the user's Binance account balance",
+                new String[]{}, new String[]{}));
 
         // place_order function
-        JsonObject placeOrderFunction = new JsonObject();
-        placeOrderFunction.addProperty("type", "function");
-        JsonObject placeOrderDetails = new JsonObject();
-        placeOrderDetails.addProperty("name", "place_order");
-        placeOrderDetails.addProperty("description", "Execute a trade on Binance");
+        tools.add(createFunctionSchema("place_order",
+                "Execute a trade on Binance",
+                new String[]{"symbol", "side", "amount"},
+                new String[]{"symbol", "side", "amount"},
+                new String[]{"BUY", "SELL"}));
 
-        // proper JSON schema for place_order parameters
-        JsonObject orderParams = new JsonObject();
-        orderParams.addProperty("type", "object");
+        // get_profit_loss function
+        tools.add(createFunctionSchema("get_profit_loss",
+                "Check unrealized profit/loss for an asset",
+                new String[]{"symbol"},
+                new String[]{"symbol"}));
 
-        JsonObject orderProperties = new JsonObject();
+        // fetch_trade_history function
+        tools.add(createFunctionSchema("fetch_trade_history",
+                "Retrieve past executed trades",
+                new String[]{"limit"},
+                new String[]{"limit"}));
 
-        JsonObject symbol = new JsonObject();
-        symbol.addProperty("type", "string");
+        // cancel_order function
+        tools.add(createFunctionSchema("cancel_order",
+                "Cancel an open Binance order",
+                new String[]{"orderId"},
+                new String[]{"orderId"}));
 
-        JsonObject side = new JsonObject();
-        side.addProperty("type", "string");
-        side.add("enum", JsonParser.parseString("[\"BUY\", \"SELL\"]"));
+        // get_top_movers function
+        tools.add(createFunctionSchema("get_top_movers",
+                "Retrieve the top moving cryptocurrencies by percentage change",
+                new String[]{"timeframe", "limit"},
+                new String[]{"timeframe", "limit"},
+                new String[]{"1h", "24h", "7d"}));
 
-        JsonObject amount = new JsonObject();
-        amount.addProperty("type", "number");
+        // create_widget function
+        tools.add(createFunctionSchema("create_widget",
+                "Generate a widget for the user based on their request",
+                new String[]{"type", "asset"},
+                new String[]{"type", "asset"},
+                new String[]{"PROFIT_LOSS", "QUICK_TRADE", "MARKET_OVERVIEW"}));
 
-        orderProperties.add("symbol", symbol);
-        orderProperties.add("side", side);
-        orderProperties.add("amount", amount);
-
-        orderParams.add("properties", orderProperties);
-        orderParams.add("required", JsonParser.parseString("[\"symbol\", \"side\", \"amount\"]"));
-        orderParams.addProperty("additionalProperties", false);
-
-        JsonObject parameters = new JsonObject();
-        parameters.addProperty("type", "object");
-        parameters.add("properties", orderProperties);
-        parameters.add("required", JsonParser.parseString("[\"symbol\", \"side\", \"amount\"]"));
-
-        placeOrderDetails.add("parameters", parameters);
-
-        placeOrderFunction.add("function", placeOrderDetails);
-        tools.add(placeOrderFunction);
+        tools.add(createFunctionSchema("general_investment_advice",
+                "Provides general investment advice based on user input",
+                new String[]{"textPrompt"},
+                new String[]{"textPrompt"}));
 
         runData.add("tools", tools);
+        runData.addProperty("tool_choice", "auto");
+        runData.addProperty("parallel_tool_calls", true); // Allow multiple functions in one request
+
 
         Request request = new Request.Builder()
                 .url(OPENAI_THREADS_URL + "/" + threadId + "/runs")
@@ -154,6 +148,67 @@ public class AIService {
 
         JsonObject responseBody = JsonParser.parseString(response.body().string()).getAsJsonObject();
         return responseBody.get("id").getAsString();
+    }
+
+    private JsonObject createFunctionSchema(String name, String description, String[] requiredParams, String[] paramNames) {
+        return createFunctionSchema(name, description, requiredParams, paramNames, null);
+    }
+
+    private JsonObject createFunctionSchema(String name, String description, String[] requiredParams, String[] paramNames, String[] enumValues) {
+        JsonObject function = new JsonObject();
+        function.addProperty("type", "function");
+
+        JsonObject details = new JsonObject();
+        details.addProperty("name", name);
+        details.addProperty("description", description);
+
+        JsonObject params = new JsonObject();
+        params.addProperty("type", "object");
+
+        JsonObject properties = new JsonObject();
+
+        // 🔹 Prevent NullPointerException by checking for null
+        if (paramNames != null) {
+            for (String paramName : paramNames) {
+                if (enumValues != null && paramName.equals("type")) {
+                    properties.add(paramName, createEnumProperty(enumValues));
+                } else {
+                    properties.add(paramName, createStringOrIntegerProperty(paramName));
+                }
+            }
+        }
+
+        params.add("properties", properties);
+
+        // 🔹 Handle `requiredParams` safely
+        if (requiredParams != null) {
+            params.add("required", JsonParser.parseString(gson.toJson(requiredParams)));
+        } else {
+            params.add("required", new JsonArray()); // Empty array instead of null
+        }
+
+        params.addProperty("additionalProperties", false);
+
+        details.add("parameters", params);
+        function.add("function", details);
+        return function;
+    }
+
+    private JsonObject createStringOrIntegerProperty(String paramName) {
+        JsonObject property = new JsonObject();
+        if (paramName.equals("orderId") || paramName.equals("limit")) {
+            property.addProperty("type", "integer");
+        } else {
+            property.addProperty("type", "string");
+        }
+        return property;
+    }
+
+    private JsonObject createEnumProperty(String[] values) {
+        JsonObject property = new JsonObject();
+        property.addProperty("type", "string");
+        property.add("enum", JsonParser.parseString(gson.toJson(values)));
+        return property;
     }
 
     private boolean waitForCompletion(String threadId) throws IOException, InterruptedException {
@@ -228,15 +283,15 @@ public class AIService {
         return responseBody.get("id").getAsString();
     }
 
-    private boolean addMessageToThread(String threadId, Integer maskId, String userMessage) throws IOException {
+    private boolean addMessageToThread(String threadId, String userMessage) throws IOException {
         JsonObject messageData = new JsonObject();
         messageData.addProperty("role", "user");
 
-        // creating an array of content objects
+        // Creating an array of content objects
         JsonArray contentArray = new JsonArray();
         JsonObject contentObject = new JsonObject();
         contentObject.addProperty("type", "text");
-        contentObject.addProperty("text", "[maskId=" + maskId + "] " + userMessage);
+        contentObject.addProperty("text", userMessage); // Send raw message
         contentArray.add(contentObject);
 
         messageData.add("content", contentArray);
@@ -265,7 +320,7 @@ public class AIService {
 
     private String fetchAssistantResponse(String threadId) throws IOException, InterruptedException {
         String url = OPENAI_THREADS_URL + "/" + threadId + "/messages";
-
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
         LOGGER.info("waiting for assistant to process function results on thread: " + threadId);
 
         for (int i = 0; i < 10; i++) { // retry for up to 10 seconds
@@ -342,13 +397,15 @@ public class AIService {
                         JsonObject firstContent = contentArray.get(0).getAsJsonObject();
                         if ("text".equals(firstContent.get("type").getAsString())) {
                             String rawResponse = firstContent.getAsJsonObject("text").get("value").getAsString();
+                            rawResponse = rawResponse.replaceAll("^```json\\s*|```$", "").trim();
                             try {
                                 JsonObject jsonResponse = JsonParser.parseString(rawResponse).getAsJsonObject();
-                                return jsonResponse.toString(); // return properly formatted JSON
+                                return jsonResponse.toString(); // Ensures full JSON is passed
                             } catch (Exception e) {
-                                LOGGER.warning("failed to parse response as json. returning raw response.");
-                                return rawResponse; // fallback in case response isn't JSON
+                                LOGGER.warning("Failed to parse response as JSON. Returning raw response.");
+                                return rawResponse; // Fallback
                             }
+
                         }
                     }
                 }
