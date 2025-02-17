@@ -17,7 +17,9 @@ public class FunctionService {
             case "get_profit_loss" -> getProfitLoss(arguments);
             case "fetch_trade_history" -> fetchTradeHistory(arguments);
             case "cancel_order" -> cancelOrder(arguments);
+            case "get_top_movers" -> getTopMovers(arguments);
             case "create_widget" -> createWidget(arguments);
+            case "general_investment_advice" -> getInvestmentAdvice(arguments);
             default -> "Unknown function call: " + functionName;
         };
     }
@@ -54,9 +56,31 @@ public class FunctionService {
         return "{ \"orderId\": " + orderId + ", \"status\": \"cancelled\" }";
     }
 
+    private String getTopMovers(JsonObject arguments) {
+        String timeframe = arguments.has("timeframe") ? arguments.get("timeframe").getAsString() : "24h";
+        int limit = arguments.has("limit") ? arguments.get("limit").getAsInt() : 5;
+
+        LOGGER.info("Fetching mock top movers for timeframe: " + timeframe + " (limit: " + limit + ")");
+
+        return "{ \"timeframe\": \"" + timeframe + "\", \"top_movers\": [" +
+                "{ \"symbol\": \"BTC\", \"change\": \"+5.6%\" }," +
+                "{ \"symbol\": \"ETH\", \"change\": \"+4.2%\" }," +
+                "{ \"symbol\": \"DOGE\", \"change\": \"+8.9%\" }" +
+                "] }";
+    }
+
     private String createWidget(JsonObject arguments) {
         String type = arguments.has("type") ? arguments.get("type").getAsString() : "PROFIT_LOSS";
         LOGGER.info("Creating mock widget of type: " + type);
         return "{ \"widget_type\": \"" + type + "\", \"status\": \"created\" }";
     }
+
+    private String getInvestmentAdvice(JsonObject arguments) {
+        String userMessage = arguments.has("textPrompt") ? arguments.get("textPrompt").getAsString() : "How should I invest?";
+
+        LOGGER.info("Providing investment advice for: " + userMessage);
+
+        return "{ \"advice\": \"A good strategy for investing $50 a week in crypto is to dollar-cost average into major assets like BTC and ETH. Research projects and adjust based on market trends.\" }";
+    }
+
 }

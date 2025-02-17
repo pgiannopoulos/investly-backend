@@ -1,7 +1,5 @@
 package com.investly.app.services;
 
-import com.investly.app.dao.MaskEntity;
-import com.investly.app.dao.MaskRepository;
 import com.investly.app.dao.MessageEntity;
 import com.investly.app.dao.MessageRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,58 +11,41 @@ import java.util.Optional;
 
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class MessageService {
 
     private final MessageRepository messageRepository;
-    private final MaskRepository maskRepository;
 
     @Autowired
     private AIService aiService;
 
-    public MessageEntity createMessage(Integer maskId, String textPrompt) {
-        String threadId = getOpenThreadForMask(maskId);
+    public MessageEntity createMessage(String userMessage) throws IOException {
+        String threadId = getLatestOpenThread();
 
         if (threadId == null) {
-            try {
-                threadId = aiService.createThread(); // Create new thread if none exists
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to create a new thread", e);
-            }
+            threadId = aiService.createThread();
         }
 
         MessageEntity message = new MessageEntity();
-        MaskEntity maskEntity = maskRepository.findById(maskId)
-                .orElseThrow(() -> new RuntimeException("Mask not found"));
-        message.setMaskEntity(maskEntity);
-
-        message.setTextPrompt(textPrompt);
-        message.setThreadId(threadId); // Associate message with thread
+        message.setTextPrompt(userMessage);
         message.setTimestamp(OffsetDateTime.now());
-        return messageRepository.save(message);
+        message.setThreadId(threadId);
+
+        messageRepository.save(message);
+        return message;
     }
 
-    public String processMessage(Integer maskId, String userMessage) {
-        return aiService.processUserMessage(maskId, userMessage);
+
+    public String processMessage(String userMessage) {
+        return aiService.processUserMessage(userMessage);
     }
 
-    public String getOpenThreadForMask(Integer maskId) {
-        MaskEntity maskEntity = maskRepository.findById(maskId).orElse(null);
-        if (maskEntity == null) {
-            return null; // No mask entity found
-        }
-
-        Optional<MessageEntity> lastMessageOptional = messageRepository.findFirstByMaskEntityOrderByTimestampDesc(maskEntity);
-
-        if (lastMessageOptional.isPresent()) {
-            MessageEntity lastMessage = lastMessageOptional.get();
-            return lastMessage.getThreadId(); // Reuse existing thread
-        }
-
-        return null; // No open thread found
+    private String getLatestOpenThread() {
+        Optional<MessageEntity> lastMessage = messageRepository.findFirstByOrderByTimestampDesc();
+        return lastMessage.map(MessageEntity::getThreadId).orElse(null);
     }
-
 
 }
