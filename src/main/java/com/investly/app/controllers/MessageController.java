@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,17 +28,27 @@ public class MessageController {
 
     @PostMapping("/new")
     public ResponseEntity<Map<String, Object>> createMessage(@RequestBody MessageRequest messageRequest) {
+        // Persist user message
         MessageEntity savedMessage = messageService.createMessage(messageRequest.getMaskId(), messageRequest.getTextPrompt());
 
-        // Retrieve the AI response for this message
-        com.investly.app.dao.ResponseEntity aiResponse = responseService.getResponseByMessageId(savedMessage.getId());
+        // Process AI response
+        String aiResponseText = messageService.processMessage(savedMessage.getMaskEntity().getId(), savedMessage.getTextPrompt());
 
+        // Persist AI response
+        com.investly.app.dao.ResponseEntity aiResponse = new com.investly.app.dao.ResponseEntity();
+        aiResponse.setMessage(aiResponseText);
+        aiResponse.setMessageId(savedMessage.getId());
+        aiResponse.setTimestamp(OffsetDateTime.now());
+        aiResponse.setThreadId(savedMessage.getThreadId());
+
+        // Save the AI response to the database
+        responseService.saveResponse(aiResponse);
 
         // Return both message and AI response
         Map<String, Object> response = new HashMap<>();
-        response.put("message", savedMessage);
+        response.put("userMessage", savedMessage);
         response.put("aiResponse", aiResponse);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return org.springframework.http.ResponseEntity.ok(response);
     }
 }

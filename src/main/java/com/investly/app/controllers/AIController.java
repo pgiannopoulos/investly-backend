@@ -1,15 +1,10 @@
 package com.investly.app.controllers;
 
-import com.investly.app.dao.MessageEntity;
-import com.investly.app.dao.ResponseEntity; // ✅ Import database entity
-import com.investly.app.dto.MessageRequest;
 import com.investly.app.services.AIService;
-import com.investly.app.services.MessageService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -17,24 +12,19 @@ import java.util.Map;
 public class AIController {
 
     private final AIService aiService;
-    private final MessageService messageService;
 
     @Autowired
-    public AIController(AIService aiService, MessageService messageService) {
+    public AIController(AIService aiService) {
         this.aiService = aiService;
-        this.messageService = messageService;
     }
 
     @PostMapping("/process")
-    public org.springframework.http.ResponseEntity<Map<String, Object>> processMessage(@RequestBody MessageRequest messageRequest) {
-        MessageEntity savedMessage = messageService.createMessage(messageRequest.getMaskId(), messageRequest.getTextPrompt());
+    public ResponseEntity<Map<String, String>> processMessage(@RequestBody Map<String, Object> request) {
+        Integer maskId = (Integer) request.get("maskId");
+        String userMessage = (String) request.get("message");
 
-        com.investly.app.dao.ResponseEntity aiResponse = aiService.generateAndSaveAIResponse(savedMessage);
+        String aiResponse = aiService.processUserMessage(maskId, userMessage);
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", savedMessage);
-        response.put("aiResponse", aiResponse);
-
-        return org.springframework.http.ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.ok(Map.of("response", aiResponse));
     }
 }
