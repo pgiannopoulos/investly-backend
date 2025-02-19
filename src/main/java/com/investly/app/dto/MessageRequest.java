@@ -4,6 +4,14 @@ import lombok.Data;
 
 @Data
 public class MessageRequest {
-    private Integer maskId;
     private String textPrompt;
+
+    public String getTextPrompt() {
+        return textPrompt;
+    }
+
+    public void setTextPrompt(String textPrompt) {
+        this.textPrompt = textPrompt;
+    }
 }
+
