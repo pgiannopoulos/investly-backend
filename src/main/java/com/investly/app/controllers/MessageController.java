@@ -29,7 +29,7 @@ public class MessageController {
     }
 
     @MessageMapping("/new")
-    public ResponseEntity<Map<String, Object>> createMessage(@Payload MessageRequest messageRequest) {
+    public ResponseEntity<Map<String, Object>> createMessage(@Payload MessageRequest messageRequest) throws IOException {
         // Persist user message
         MessageEntity savedMessage = messageService.createMessage(messageRequest.getTextPrompt());
 
