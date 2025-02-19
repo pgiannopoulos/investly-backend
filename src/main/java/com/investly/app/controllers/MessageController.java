@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Controller;
 
 import java.io.IOException;
@@ -17,6 +18,7 @@ import java.util.Map;
 
 @Controller
 @MessageMapping("/messages")
+@SendTo("/topic/messages")
 public class MessageController {
 
     private final MessageService messageService;
@@ -29,7 +31,7 @@ public class MessageController {
     }
 
     @MessageMapping("/new")
-    public ResponseEntity<Map<String, Object>> createMessage(@Payload MessageRequest messageRequest) throws IOException {
+    public Map<String, Object> createMessage(@Payload MessageRequest messageRequest) throws IOException {
         // Persist user message
         MessageEntity savedMessage = messageService.createMessage(messageRequest.getTextPrompt());
 
@@ -51,6 +53,6 @@ public class MessageController {
         response.put("userMessage", savedMessage);
         response.put("aiResponse", aiResponse);
 
-        return ResponseEntity.ok(response);
+        return response;
     }
 }
