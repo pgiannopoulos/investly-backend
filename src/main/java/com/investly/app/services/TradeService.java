@@ -1,9 +1,6 @@
 package com.investly.app.services;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +13,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Service
 public class TradeService {
@@ -274,6 +269,50 @@ public class TradeService {
         } catch (Exception e) {
             LOGGER.error("Exception in getBalance: " + e.getMessage());
             return "{\"error\": \"Failed to retrieve balance\"}";
+        }
+    }
+
+    public String createWidget(String type, List<String> assets, String timeframe, String startDate, String endDate, Boolean isBuy) {
+        JsonObject response = new JsonObject();
+
+        try {
+            // Handle type
+            type = (type != null) ? type : "QUICK_TRADE";  // Default to QUICK_TRADE if null
+            response.addProperty("type", type);
+
+            // Handle assets
+            if (assets == null) {
+                assets = new ArrayList<>();
+            }
+            response.add("assets", JsonParser.parseString(new Gson().toJson(assets)));
+
+            // For QUICK_TRADE type, we only need assets and isBuy
+            if ("QUICK_TRADE".equals(type)) {
+                response.addProperty("timeframe", "");
+                response.addProperty("startDate", "");
+                response.addProperty("endDate", "");
+                response.addProperty("isBuy", true);  // Default to true if null
+            } else {
+                // For other widget types, handle timeframe and dates
+                String currentDate = java.time.LocalDate.now().toString();
+                String defaultEndDate = currentDate;
+                String defaultStartDate = java.time.LocalDate.now().minusMonths(1).toString();
+
+                response.addProperty("timeframe", timeframe != null ? timeframe : "1d");
+                response.addProperty("startDate", startDate != null ? startDate : defaultStartDate);
+                response.addProperty("endDate", endDate != null ? endDate : defaultEndDate);
+                response.addProperty("isBuy", false);  // isBuy is only relevant for QUICK_TRADE
+            }
+
+            response.addProperty("status", "success");
+            response.addProperty("message", "Widget created successfully");
+
+            return response.toString();
+
+        } catch (Exception e) {
+            response.addProperty("status", "error");
+            response.addProperty("message", "Failed to create widget: " + e.getMessage());
+            return response.toString();
         }
     }
 

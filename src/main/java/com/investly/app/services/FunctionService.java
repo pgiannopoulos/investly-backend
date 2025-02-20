@@ -1,8 +1,13 @@
 package com.investly.app.services;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 @Service
@@ -44,6 +49,30 @@ public class FunctionService {
             case "get_profit_loss":
                 return tradeService.getProfitLoss(arguments.get("symbol").getAsString());
 
+            case "create_widget":
+
+                String widgetType = arguments.get("type").getAsString();
+
+                // Convert JSON array to List<String>
+                List<String> assets = new ArrayList<>();
+                JsonArray assetsArray = arguments.getAsJsonArray("assets");
+                for (JsonElement element : assetsArray) {
+                    assets.add(element.getAsString());
+                }
+
+                String timeframe = arguments.get("timeframe").getAsString();
+                String startDate = arguments.get("startDate").getAsString();
+                String endDate = arguments.get("endDate").getAsString();
+                Boolean isBuy = arguments.get("isBuy").getAsBoolean();
+
+                return tradeService.createWidget(
+                        widgetType,
+                        assets,
+                        timeframe,
+                        startDate,
+                        endDate,
+                        isBuy
+                );
             default:
                 return "{\"error\": \"Invalid function name\"}";
         }
