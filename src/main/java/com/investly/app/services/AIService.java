@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -43,7 +44,7 @@ public class AIService {
                 LOGGER.info("Created single thread: " + singleThreadId);
             }
 
-            // Check and handle any active runs before adding new message
+            // Cancel any active run on this thread
             String activeRunId = getActiveRunId(singleThreadId);
             if (activeRunId != null) {
                 LOGGER.info("Found active run: " + activeRunId + ". Attempting to cancel...");
@@ -54,6 +55,9 @@ public class AIService {
                 }
                 LOGGER.info("Successfully cancelled active run: " + activeRunId);
             }
+
+            // Capture the current timestamp for the user message
+            long lastUserTimestamp = System.currentTimeMillis();
 
             boolean messageAdded = addMessageToThread(singleThreadId, userMessage);
             if (!messageAdded) {
@@ -76,7 +80,8 @@ public class AIService {
             }
 
             LOGGER.info("Fetching assistant response for thread: " + singleThreadId);
-            return fetchAssistantResponse(singleThreadId);
+            // Now call fetchAssistantResponse with the threadId, current runId, and lastUserTimestamp.
+            return fetchAssistantResponse(singleThreadId, runId, lastUserTimestamp);
 
         } catch (IOException | InterruptedException e) {
             LOGGER.severe("Exception: " + e.getMessage());
@@ -229,19 +234,19 @@ public class AIService {
         return false;
     }
 
-    private String fetchAssistantResponse(String threadId) throws IOException, InterruptedException {
+    private String fetchAssistantResponse(String threadId, String currentRunId, long lastUserTimestamp) throws IOException, InterruptedException {
         String url = OPENAI_THREADS_URL + "/" + threadId + "/messages";
-        int maxRetries = 10;
+        int maxRetries = 5; // Reduced from 10
         int retryCount = 0;
 
         while (retryCount < maxRetries) {
-            // Check if there's an active run that needs to be handled
+            // Wait if there's an active run
             String activeRunId = getActiveRunId(threadId);
             if (activeRunId != null) {
                 LOGGER.info("Found active run while fetching response. Waiting for completion...");
                 boolean completed = waitForCompletion(threadId);
                 if (!completed) {
-                    return "Error: Assistant run did not complete successfully.";
+                    return "{\"error\": \"Assistant run did not complete successfully.\"}";
                 }
             }
 
@@ -252,91 +257,73 @@ public class AIService {
                     .addHeader("OpenAI-Beta", "assistants=v2")
                     .build();
 
-            Response response = client.newCall(request).execute();
-            if (!response.isSuccessful()) {
-                LOGGER.severe("error fetching assistant response: " + response.body().string());
-                return "error retrieving response.";
-            }
-
-            String responseBodyString = response.body().string();
-            LOGGER.info("raw openai api response: " + responseBodyString);
-
-            JsonObject responseBody = JsonParser.parseString(responseBodyString).getAsJsonObject();
-            JsonArray messages = responseBody.getAsJsonArray("data");
-
-            if (messages == null || messages.size() == 0) {
-                LOGGER.warning("no messages found yet, retrying...");
-                TimeUnit.SECONDS.sleep(2);
-                continue;
-            }
-
-            // Get the first message (most recent) that's from the assistant
-            JsonObject latestAssistantMessage = null;
-            for (JsonElement messageElement : messages) {
-                JsonObject message = messageElement.getAsJsonObject();
-                if ("assistant".equals(message.get("role").getAsString())) {
-                    latestAssistantMessage = message;
-                    break; // Break after finding the first (most recent) assistant message
-                }
-            }
-
-            if (latestAssistantMessage != null) {
-                if (latestAssistantMessage.has("tool_calls")) {
-                    JsonArray toolCalls = latestAssistantMessage.getAsJsonArray("tool_calls");
-                    List<JsonObject> toolOutputs = new ArrayList<>();
-
-                    for (JsonElement toolCallElement : toolCalls) {
-                        JsonObject toolCall = toolCallElement.getAsJsonObject();
-                        String toolId = toolCall.get("id").getAsString();
-                        String functionName = toolCall.getAsJsonObject("function").get("name").getAsString();
-                        JsonObject arguments = toolCall.getAsJsonObject("function").getAsJsonObject("arguments");
-
-                        LOGGER.info("assistant requested function: " + functionName + " with arguments: " + arguments.toString());
-
-                        String functionResult = functionService.handleFunctionCall(functionName, arguments);
-
-                        JsonObject toolOutput = new JsonObject();
-                        toolOutput.addProperty("tool_call_id", toolId);
-                        toolOutput.addProperty("output", functionResult);
-                        toolOutputs.add(toolOutput);
-                    }
-
-                    String runId = getActiveRunId(threadId);
-                    if (runId == null) {
-                        LOGGER.severe("no active run found for thread: " + threadId);
-                        return "error: no active run found.";
-                    }
-
-                    boolean success = submitFunctionOutputs(threadId, runId, toolOutputs);
-                    if (!success) {
-                        LOGGER.severe("error submitting function result.");
-                        return "error: failed to submit function result.";
-                    }
+            try (Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    LOGGER.severe("Error fetching assistant response: " + response.body().string());
+                    return "{\"error\": \"Failed to retrieve response.\"}";
                 }
 
-                JsonArray contentArray = latestAssistantMessage.getAsJsonArray("content");
-                if (contentArray != null && contentArray.size() > 0) {
+                String responseBodyString = response.body().string();
+                LOGGER.info("Raw OpenAI API response: " + responseBodyString);
+
+                JsonObject responseBody = JsonParser.parseString(responseBodyString).getAsJsonObject();
+                JsonArray messages = responseBody.getAsJsonArray("data");
+
+                if (messages == null || messages.size() == 0) {
+                    LOGGER.warning("No messages found, retrying...");
+                    TimeUnit.SECONDS.sleep(2);
+                    retryCount++;
+                    continue;
+                }
+
+                // Reverse iterate to get the most recent assistant message
+                for (int i = messages.size() - 1; i >= 0; i--) {
+                    JsonObject message = messages.get(i).getAsJsonObject();
+
+                    // Check if it's an assistant message
+                    if (!"assistant".equals(message.get("role").getAsString())) {
+                        continue;
+                    }
+
+                    // Check if the message is associated with the current run
+                    if (!message.has("run_id") || message.get("run_id").isJsonNull() ||
+                            !message.get("run_id").getAsString().equals(currentRunId)) {
+                        continue;
+                    }
+
+                    // Check if the message content is text type
+                    JsonArray contentArray = message.getAsJsonArray("content");
+                    if (contentArray == null || contentArray.size() == 0) {
+                        continue;
+                    }
+
                     JsonObject firstContent = contentArray.get(0).getAsJsonObject();
-                    if ("text".equals(firstContent.get("type").getAsString())) {
-                        String rawResponse = firstContent.getAsJsonObject("text").get("value").getAsString();
-                        rawResponse = rawResponse.replaceAll("^```json\\s*|```$", "").trim();
-                        try {
-                            JsonObject jsonResponse = JsonParser.parseString(rawResponse).getAsJsonObject();
-                            return jsonResponse.toString();
-                        } catch (Exception e) {
-                            LOGGER.warning("Failed to parse response as JSON. Returning raw response.");
-                            return rawResponse;
-                        }
+                    if (!"text".equals(firstContent.get("type").getAsString())) {
+                        continue;
                     }
-                }
-            }
 
-            LOGGER.warning("no assistant response yet, retrying...");
-            TimeUnit.SECONDS.sleep(2);
-            retryCount++;
+                    // Extract and parse the response
+                    String rawResponse = firstContent.getAsJsonObject("text").get("value").getAsString();
+
+                    // Remove potential JSON string escaping
+                    rawResponse = rawResponse.replace("\\n", "\n").replace("\\\"", "\"");
+
+                    LOGGER.info("Parsed raw response: " + rawResponse);
+
+                    return rawResponse;
+                }
+
+                // If no suitable message found
+                LOGGER.warning("No valid assistant response found in the current batch.");
+                TimeUnit.SECONDS.sleep(2);
+                retryCount++;
+            } catch (Exception e) {
+                LOGGER.severe("Exception in fetchAssistantResponse: " + e.getMessage());
+                return "{\"error\": \"" + e.getMessage() + "\"}";
+            }
         }
 
-        return "no valid assistant response found.";
+        return "{\"error\": \"No valid assistant response found after multiple attempts.\"}";
     }
 
     private boolean submitFunctionOutputs(String threadId, String runId, List<JsonObject> toolOutputs) throws IOException {
