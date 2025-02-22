@@ -128,26 +128,56 @@ public class TradeService {
             if (symbol == null) {
                 String balancesResponse = getBalance();
                 JsonObject balancesJson = JsonParser.parseString(balancesResponse).getAsJsonObject();
-                JsonArray balances = balancesJson.getAsJsonArray("balances");
 
+                // Check if we have balances field in response
+                if (!balancesJson.has("balances")) {
+                    LOGGER.error("No balances found in response");
+                    return "{\"error\": \"No balances found\"}";
+                }
+
+                JsonObject balancesObj = balancesJson.getAsJsonObject("balances");
                 JsonArray combinedTrades = new JsonArray();
-                for (JsonElement balanceElement : balances) {
-                    JsonObject balance = balanceElement.getAsJsonObject();
-                    String asset = balance.get("asset").getAsString();
-                    double freeBalance = balance.get("free").getAsDouble();
+
+                for (Map.Entry<String, JsonElement> entry : balancesObj.entrySet()) {
+                    JsonObject balance = entry.getValue().getAsJsonObject();
+                    String asset = entry.getKey();
+                    double freeBalance = balance.has("amount") ?
+                            Double.parseDouble(balance.get("amount").getAsString()) : 0.0;
 
                     // Skip assets with 0 balance
                     if (freeBalance > 0) {
-                        String tradeHistory = fetchTradeHistory(asset + "USDT", limit); // Assume USDT pairs
+                        String tradeHistory = fetchTradeHistory(asset + "USDT", limit);
                         if (!tradeHistory.contains("error")) {
-                            JsonArray assetTrades = JsonParser.parseString(tradeHistory).getAsJsonArray();
-                            combinedTrades.addAll(assetTrades);
+                            try {
+                                JsonElement tradesElement = JsonParser.parseString(tradeHistory);
+                                if (tradesElement.isJsonArray()) {
+                                    JsonArray assetTrades = tradesElement.getAsJsonArray();
+                                    for (JsonElement trade : assetTrades) {
+                                        combinedTrades.add(trade);
+                                    }
+                                }
+                            } catch (Exception e) {
+                                LOGGER.warn("Failed to parse trades for " + asset + ": " + e.getMessage());
+                            }
                         }
                     }
                 }
 
+                // Sort combined trades by timestamp (assuming there's a 'time' field)
+                List<JsonElement> sortedTrades = new ArrayList<>();
+                combinedTrades.forEach(sortedTrades::add);
+                sortedTrades.sort((a, b) -> {
+                    long timeA = a.getAsJsonObject().get("time").getAsLong();
+                    long timeB = b.getAsJsonObject().get("time").getAsLong();
+                    return Long.compare(timeB, timeA); // Descending order
+                });
+
                 JsonObject result = new JsonObject();
-                result.add("all_trades", combinedTrades);
+                JsonArray finalTrades = new JsonArray();
+                sortedTrades.stream()
+                        .limit(limit)
+                        .forEach(finalTrades::add);
+                result.add("trades", finalTrades);
                 return result.toString();
             }
 
@@ -169,14 +199,24 @@ public class TradeService {
                     LOGGER.error("Failed to fetch trade history. HTTP Code: " + response.code());
                     return "{\"error\": \"Failed to fetch trade history\"}";
                 }
-                return response.body().string();
+
+                String responseBody = response.body().string();
+                JsonElement trades = JsonParser.parseString(responseBody);
+
+                // Handle both array and object responses
+                if (trades.isJsonArray()) {
+                    return trades.toString();
+                } else {
+                    JsonObject result = new JsonObject();
+                    result.add("trades", new JsonArray());
+                    return result.toString();
+                }
             }
         } catch (Exception e) {
             LOGGER.error("Exception in fetchTradeHistory: " + e.getMessage());
-            return "{\"error\": \"Failed to fetch trade history\"}";
+            return "{\"error\": \"Failed to fetch trade history: " + e.getMessage() + "\"}";
         }
     }
-
     public String getProfitLoss(String symbol) {
         try {
             String tradeHistory = fetchTradeHistory(symbol, 10);
@@ -239,11 +279,12 @@ public class TradeService {
                 // Parse Binance API response
                 String responseBody = response.body().string();
                 JsonObject binanceResponse = JsonParser.parseString(responseBody).getAsJsonObject();
-
-                // Extract only relevant balance data
                 JsonArray balances = binanceResponse.getAsJsonArray("balances");
+
+                // Create our cleaned response
                 JsonObject cleanedResponse = new JsonObject();
-                JsonArray topBalances = new JsonArray();
+                JsonObject balancesObj = new JsonObject();
+                double totalValueUsd = 0.0;
 
                 // Define top pairs
                 Set<String> topPairs = Set.of("BTC", "ETH", "XRP", "DOGE", "ADA", "BNB", "SOL", "MATIC", "DOT", "LTC");
@@ -253,22 +294,50 @@ public class TradeService {
                     String asset = balance.get("asset").getAsString();
 
                     if (topPairs.contains(asset)) {
-                        JsonObject assetDetails = new JsonObject();
-                        assetDetails.addProperty("asset", asset);
-                        assetDetails.addProperty("free", balance.get("free").getAsString());
-                        assetDetails.addProperty("locked", balance.get("locked").getAsString());
-                        topBalances.add(assetDetails);
+                        double freeAmount = Double.parseDouble(balance.get("free").getAsString());
+
+                        if (freeAmount > 0) {
+                            // Get current price for the asset
+                            double price = getCryptoPrice(asset + "USDT");
+                            double assetValueUsd = freeAmount * price;
+                            totalValueUsd += assetValueUsd;
+
+                            // Create asset details
+                            JsonObject assetDetails = new JsonObject();
+                            assetDetails.addProperty("amount", balance.get("free").getAsString());
+                            assetDetails.addProperty("asset", getFullAssetName(asset));
+                            assetDetails.addProperty("usd_value", assetValueUsd);
+                            balancesObj.add(asset, assetDetails);
+                        }
                     }
                 }
 
-                cleanedResponse.add("balances", topBalances);
-                LOGGER.info("Cleaned Binance Balance Response: " + cleanedResponse.toString());
-                return cleanedResponse.toString();
+                cleanedResponse.add("balances", balancesObj);
+                cleanedResponse.addProperty("total_value_usd", totalValueUsd);
 
+                LOGGER.info("Cleaned Binance Balance Response with USD values: " + cleanedResponse.toString());
+                return cleanedResponse.toString();
             }
         } catch (Exception e) {
             LOGGER.error("Exception in getBalance: " + e.getMessage());
             return "{\"error\": \"Failed to retrieve balance\"}";
+        }
+    }
+
+    // Helper method to get full asset names
+    private String getFullAssetName(String symbol) {
+        switch (symbol) {
+            case "BTC": return "Bitcoin";
+            case "ETH": return "Ethereum";
+            case "XRP": return "Ripple";
+            case "DOGE": return "Dogecoin";
+            case "ADA": return "Cardano";
+            case "BNB": return "Binance Coin";
+            case "SOL": return "Solana";
+            case "MATIC": return "Polygon";
+            case "DOT": return "Polkadot";
+            case "LTC": return "Litecoin";
+            default: return symbol;
         }
     }
 
@@ -292,7 +361,25 @@ public class TradeService {
                 response.addProperty("startDate", "");
                 response.addProperty("endDate", "");
                 response.addProperty("isBuy", true);  // Default to true if null
-            } else {
+            } else if ("PORTFOLIO".equals(type)) {
+                String balanceResponse = getBalance();
+                JsonObject balanceData = JsonParser.parseString(balanceResponse).getAsJsonObject();
+
+                response.addProperty("response", "Portfolio Overview");
+                response.add("balances", balanceData.get("balances"));
+
+                // Add metadata about the widget
+                JsonObject widgetConfig = new JsonObject();
+                widgetConfig.addProperty("type", type);
+                widgetConfig.add("assets", JsonParser.parseString(new Gson().toJson(assets)));
+                widgetConfig.addProperty("timeframe", timeframe != null ? timeframe : "");
+                widgetConfig.addProperty("startDate", startDate != null ? startDate : "");
+                widgetConfig.addProperty("endDate", endDate != null ? endDate : "");
+                widgetConfig.addProperty("isBuy", false);
+
+                response.add("widget_config", widgetConfig);
+
+            }else {
                 // For other widget types, handle timeframe and dates
                 String currentDate = java.time.LocalDate.now().toString();
                 String defaultEndDate = currentDate;
