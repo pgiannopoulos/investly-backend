@@ -51,31 +51,55 @@ public class FunctionService {
 
             case "create_widget":
 
-                String widgetType = arguments.get("type").getAsString();
-
-                // Convert JSON array to List<String>
+                String type = getStringOrDefault(arguments, "type", "PORTFOLIO");
                 List<String> assets = new ArrayList<>();
-                JsonArray assetsArray = arguments.getAsJsonArray("assets");
-                for (JsonElement element : assetsArray) {
-                    assets.add(element.getAsString());
+
+                // Handle assets based on widget type
+                if ("PORTFOLIO".equals(type)) {
+                    // For portfolio, we accept empty assets
+                    assets = new ArrayList<>();
+                } else {
+                    // For other types, parse assets array if present
+                    JsonElement assetsElement = arguments.get("assets");
+                    if (assetsElement != null && !assetsElement.isJsonNull()) {
+                        if (assetsElement.isJsonArray()) {
+                            JsonArray assetsArray = assetsElement.getAsJsonArray();
+                            for (JsonElement element : assetsArray) {
+                                assets.add(element.getAsString());
+                            }
+                        } else if (!assetsElement.getAsString().isEmpty()) {
+                            // Handle single asset as string
+                            assets.add(assetsElement.getAsString());
+                        }
+                    }
                 }
 
-                String timeframe = arguments.get("timeframe").getAsString();
-                String startDate = arguments.get("startDate").getAsString();
-                String endDate = arguments.get("endDate").getAsString();
-                Boolean isBuy = arguments.get("isBuy").getAsBoolean();
+                String timeframe = getStringOrDefault(arguments, "timeframe", null);
+                String startDate = getStringOrDefault(arguments, "startDate", null);
+                String endDate = getStringOrDefault(arguments, "endDate", null);
+                Boolean isBuy = getBooleanOrDefault(arguments, "isBuy", null);
 
-                return tradeService.createWidget(
-                        widgetType,
-                        assets,
-                        timeframe,
-                        startDate,
-                        endDate,
-                        isBuy
-                );
+                return tradeService.createWidget(type, assets, timeframe, startDate, endDate, isBuy);
             default:
                 return "{\"error\": \"Invalid function name\"}";
         }
     }
+
+    private String getStringOrDefault(JsonObject obj, String key, String defaultValue) {
+        JsonElement element = obj.get(key);
+        if (element == null || element.isJsonNull()) {
+            return defaultValue;
+        }
+        return element.getAsString();
+    }
+
+    private Boolean getBooleanOrDefault(JsonObject obj, String key, Boolean defaultValue) {
+        JsonElement element = obj.get(key);
+        if (element == null || element.isJsonNull()) {
+            return defaultValue;
+        }
+        return element.getAsBoolean();
+    }
+
 
 }
