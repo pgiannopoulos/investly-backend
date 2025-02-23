@@ -41,6 +41,9 @@ public class TradeService {
 
     public String placeOrder(String symbol, String side, double amount, String currency) {
         try {
+            // Append USDT to the symbol if it doesn't already contain it
+            String tradingPair = symbol.endsWith("USDT") ? symbol : symbol + "USDT";
+
             // If the amount is in fiat (EUR), convert to USDT first
             if (currency.equalsIgnoreCase("EUR")) {
                 double usdtRate = getCryptoPrice("EURUSDT");
@@ -51,16 +54,16 @@ public class TradeService {
             }
 
             // Convert USDT to crypto
-            double cryptoPrice = getCryptoPrice(symbol);
+            double cryptoPrice = getCryptoPrice(tradingPair);
             if (cryptoPrice <= 0) {
-                return "{\"error\": \"Failed to fetch price for " + symbol + "\"}";
+                return "{\"error\": \"Failed to fetch price for " + tradingPair + "\"}";
             }
 
             double cryptoAmount = amount / cryptoPrice; // Convert USDT to the requested crypto
-            cryptoAmount = roundQuantity(symbol, cryptoAmount);
+            cryptoAmount = roundQuantity(tradingPair, cryptoAmount); // Note: Changed to use tradingPair here too
 
             long timestamp = System.currentTimeMillis() + getServerTimeOffset();
-            String queryString = "symbol=" + symbol + "&side=" + side.toUpperCase() +
+            String queryString = "symbol=" + tradingPair + "&side=" + side.toUpperCase() +
                     "&type=MARKET&quantity=" + cryptoAmount + "&timestamp=" + timestamp;
             String signature = generateSignature(queryString);
             String url = binanceBaseUrl + "/api/v3/order?" + queryString + "&signature=" + signature;
@@ -69,23 +72,23 @@ public class TradeService {
 
             Request request = new Request.Builder()
                     .url(url)
-                    .post(RequestBody.create(null, new byte[0])) // Binance requires an empty body
+                    .post(RequestBody.create(null, new byte[0]))
                     .addHeader("X-MBX-APIKEY", binanceApiKey)
                     .build();
 
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    LOGGER.error("Failed to place order. HTTP Code: " + response.code());
-                    return "{\"error\": \"Failed to place order\"}";
+                    String errorBody = response.body().string();
+                    LOGGER.error("Failed to place order. HTTP Code: " + response.code() + ", Error: " + errorBody);
+                    return "{\"error\": \"Failed to place order: " + errorBody + "\"}";
                 }
                 return response.body().string();
             }
         } catch (Exception e) {
             LOGGER.error("Exception in placeOrder: " + e.getMessage());
-            return "{\"error\": \"Error placing order\"}";
+            return "{\"error\": \"Error placing order: " + e.getMessage() + "\"}";
         }
     }
-
     public String cancelOrder(long orderId, String symbol) {
         try {
             long timeOffset = getServerTimeOffset();
@@ -508,7 +511,10 @@ public class TradeService {
 
     public double getCryptoPrice(String symbol) {
         try {
-            String url = binanceBaseUrl + "/api/v3/ticker/price?symbol=" + symbol;
+            // Ensure the symbol has USDT pair if not already present
+            String tradingPair = symbol.endsWith("USDT") ? symbol : symbol + "USDT";
+
+            String url = binanceBaseUrl + "/api/v3/ticker/price?symbol=" + tradingPair;
             Request request = new Request.Builder()
                     .url(url)
                     .get()
@@ -528,6 +534,5 @@ public class TradeService {
             return 0;
         }
     }
-
 
 }
