@@ -1,6 +1,6 @@
 # Investly Backend
 
-Investly is an AI-powered investment assistant backend built with Spring Boot that integrates with OpenAI's Assistant API and Binance API to provide intelligent trading and portfolio management capabilities.
+Investly is our 2 day hackathon project! An AI-powered investment assistant backend built with Spring Boot that integrates with OpenAI's Assistant API and Binance API to provide intelligent trading and portfolio management capabilities.
 
 https://github.com/user-attachments/assets/de449a2f-9ca6-4b29-b2e3-db56baf42d6c
 
