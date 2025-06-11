@@ -1,6 +1,9 @@
-package com.investly.app;
+package com.investly.services;
 
-import jakarta.transaction.Transactional;
+import com.investly.entities.MaskEntity;
+import com.investly.entities.MessageEntity;
+import com.investly.repositories.MaskRepository;
+import com.investly.repositories.MessageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
